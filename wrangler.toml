@@ -1,0 +1,8 @@
+name = "pos-ibnu-abbas"
+compatibility_date = "2024-05-11"
+pages_build_output_dir = "dist"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "pos-db"
+database_id = "92f46720-e167-4087-bda9-a026a5c91e8f"

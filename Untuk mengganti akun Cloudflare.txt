@@ -1,0 +1,52 @@
+Untuk mengganti akun Cloudflare yang terhubung dengan proyek ini dari email pribadi ke email perusahaan, Anda perlu melakukan beberapa langkah. Selain sekadar logout dan login, kita juga harus membuat ulang database D1 di akun yang baru karena database sebelumnya terikat pada akun lama.
+
+Berikut adalah langkah-langkah lengkapnya:
+
+1. Logout dari Akun Lama
+Buka terminal Anda di folder proyek ini (/home/rofiq-ais/Project/POS), lalu jalankan perintah:
+
+bash
+npx wrangler logout
+2. Login dengan Akun Perusahaan
+Jalankan perintah berikut untuk login kembali:
+
+bash
+npx wrangler login
+Perintah ini akan otomatis membuka tab di browser Anda. Pastikan Anda login menggunakan email perusahaan Anda. Setelah login, klik "Allow" untuk memberikan izin kepada Wrangler.
+
+3. Buat Database D1 Baru di Akun Baru
+Karena akun berubah, database pos-db yang lama tidak akan terbaca. Anda perlu membuatnya lagi di akun perusahaan. Jalankan:
+
+bash
+npx wrangler d1 create pos-db
+Setelah berhasil, perhatikan output di terminal Anda. Wrangler akan memberikan konfigurasi baru yang berisi database_id yang baru.
+
+4. Update file wrangler.toml
+Buka file wrangler.toml di proyek Anda. Ganti baris database_id yang lama dengan database_id yang baru Anda dapatkan dari langkah 3.
+
+toml
+[[d1_databases]]
+binding = "DB"
+database_name = "pos-db"
+database_id = "ID_DATABASE_YANG_BARU_DISINI" # <--- Ganti bagian ini
+5. Setup Struktur Tabel Database
+Karena database di akun baru masih kosong, kita perlu memasukkan tabel-tabelnya (migrasi) menggunakan file schema.sql yang sudah ada di proyek Anda. Jalankan:
+
+bash
+npx wrangler d1 execute pos-db --remote --file=./schema.sql
+6. Deploy Proyek ke Akun Baru
+Terakhir, Anda perlu men-deploy ulang proyek agar Cloudflare Pages membuat proyek baru di akun perusahaan Anda.
+
+Lakukan build terlebih dahulu:
+
+bash
+npm run build
+Lalu jalankan deploy:
+
+bash
+npx wrangler pages deploy dist
+Saat pertama kali deploy di akun baru ini, Wrangler akan bertanya apakah Anda ingin membuat project baru. Pilih Create a new project (atau tekan Enter jika itu opsi default), dan beri nama proyeknya (misal: pos-ibnu-abbas).
+
+Apakah Anda ingin saya yang langsung menjalankan sebagian dari perintah-perintah tersebut (seperti mengganti ID di wrangler.toml nanti setelah Anda punya ID yang baru)?
+
+Silakan lakukan Langkah 1 sampai 3 terlebih dahulu di terminal Anda, lalu beritahu saya database_id yang baru jika ingin saya bantu mengubah konfigurasinya!
