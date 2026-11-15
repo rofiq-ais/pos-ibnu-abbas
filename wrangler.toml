@@ -6,3 +6,9 @@ pages_build_output_dir = "dist"
 binding = "DB"
 database_name = "pos-db"
 database_id = "92f46720-e167-4087-bda9-a026a5c91e8f"
+
+[env.preview]
+[[env.preview.d1_databases]]
+binding = "DB"
+database_name = "pos-db-dev"
+database_id = "d12d25d2-2d95-4f4d-bea3-7ee803e1a3e3"
