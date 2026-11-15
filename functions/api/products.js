@@ -24,7 +24,10 @@ export async function onRequestPost(context) {
       INSERT INTO products (id, name, category, price, costPrice, stock, minStock, image, barcode)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(id) DO UPDATE SET 
-        stock = stock + excluded.stock,
+        name = excluded.name,
+        category = excluded.category,
+        image = excluded.image,
+        stock = excluded.stock,
         price = excluded.price,
         costPrice = excluded.costPrice,
         minStock = excluded.minStock,

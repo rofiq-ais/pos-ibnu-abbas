@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Minus, Wallet, ArrowDownCircle, ArrowUpCircle, X, Download } from 'lucide-react';
+import { Minus, Plus, Wallet, ArrowDownCircle, ArrowUpCircle, X, Download } from 'lucide-react';
 import { formatDate, formatCurrency, filterByTimeframe, exportToCSV } from '../utils';
 import { TimeframeFilter } from './Shared';
 
 // ── CashFlowView ──────────────────────────────────────────────────────────────
 export function CashFlowView({ pos }) {
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [timeframe,    setTimeframe]    = useState('all');
-  const [customDate,   setCustomDate]   = useState('');
+  const [modalType, setModalType] = useState(null); // null | 'IN' | 'OUT'
+  const [timeframe, setTimeframe] = useState('all');
+  const [customDate, setCustomDate] = useState('');
 
   const filteredCashFlow = filterByTimeframe(pos.cashFlow, 'created_at', timeframe, customDate);
 
@@ -34,7 +34,10 @@ export function CashFlowView({ pos }) {
           <button className="btn btn-outline" onClick={() => exportToCSV(csvData, `ArusKas_POS_${timeframe}_${Date.now()}.csv`)} disabled={filteredCashFlow.length === 0}>
             <Download size={18} /> Export CSV
           </button>
-          <button className="btn btn-danger" onClick={() => setShowAddModal(true)}>
+          <button className="btn btn-success" onClick={() => setModalType('IN')} style={{ gap: '8px' }}>
+            <Plus size={18} /> Tambah Pemasukan
+          </button>
+          <button className="btn btn-danger" onClick={() => setModalType('OUT')} style={{ gap: '8px' }}>
             <Minus size={18} /> Tambah Pengeluaran
           </button>
         </div>
@@ -101,57 +104,137 @@ export function CashFlowView({ pos }) {
         </div>
       </div>
 
-      {/* Add Expense Modal */}
-      {showAddModal && <AddExpenseModal pos={pos} onClose={() => setShowAddModal(false)} />}
+      {/* Dynamic Add Income / Expense Modal */}
+      {modalType && (
+        <AddCashFlowModal 
+          pos={pos} 
+          initialType={modalType} 
+          onClose={() => setModalType(null)} 
+        />
+      )}
     </div>
   );
 }
 
-// ── AddExpenseModal ───────────────────────────────────────────────────────────
-function AddExpenseModal({ pos, onClose }) {
-  const [category,     setCategory]     = useState('Bahan Baku');
-  const [amount,       setAmount]       = useState('');
-  const [description,  setDescription]  = useState('');
+// ── AddCashFlowModal ──────────────────────────────────────────────────────────
+function AddCashFlowModal({ pos, initialType, onClose }) {
+  const [type, setType] = useState(initialType); // 'IN' or 'OUT'
+  const [category, setCategory] = useState(initialType === 'IN' ? 'Suntikan Dana' : 'Bahan Baku');
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Automatically switch category selection list when type switches
+  const handleTypeChange = (newType) => {
+    setType(newType);
+    setCategory(newType === 'IN' ? 'Suntikan Dana' : 'Bahan Baku');
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!amount || isNaN(amount) || amount <= 0) return;
     setIsSubmitting(true);
-    await pos.addExpense({ category, amount: parseInt(amount, 10), description });
+    await pos.addCashFlow({ 
+      type, 
+      category, 
+      amount: parseInt(amount, 10), 
+      description 
+    });
     setIsSubmitting(false);
     onClose();
   };
 
+  const categories = type === 'IN' 
+    ? ['Suntikan Dana', 'Hasil SO (Lebih Stok)', 'Penjualan Lainnya', 'Lain-lain']
+    : ['Bahan Baku', 'Gaji Pegawai', 'Listrik/Air', 'Sewa Tempat', 'Lain-lain'];
+
   return (
     <div className="modal-overlay">
-      <div className="modal-content">
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-          <h2>Catat Pengeluaran</h2>
+      <div className="modal-content" style={{ maxWidth: '400px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', alignItems: 'center' }}>
+          <h2>Catat Arus Kas</h2>
           <button className="btn-icon" onClick={onClose}><X size={24} /></button>
         </div>
+
+        {/* Premium Tab Selector inside Modal */}
+        <div style={{ display: 'flex', background: 'var(--background)', padding: '4px', borderRadius: '8px', marginBottom: '20px' }}>
+          <button 
+            type="button"
+            style={{ 
+              flex: 1, 
+              padding: '8px 12px', 
+              borderRadius: '6px', 
+              border: 'none', 
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              backgroundColor: type === 'IN' ? 'var(--secondary)' : 'transparent',
+              color: type === 'IN' ? 'white' : 'var(--text-muted)',
+              transition: 'all 0.2s'
+            }}
+            onClick={() => handleTypeChange('IN')}
+          >
+            📥 Pemasukan (IN)
+          </button>
+          <button 
+            type="button"
+            style={{ 
+              flex: 1, 
+              padding: '8px 12px', 
+              borderRadius: '6px', 
+              border: 'none', 
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '0.9rem',
+              backgroundColor: type === 'OUT' ? 'var(--danger)' : 'transparent',
+              color: type === 'OUT' ? 'white' : 'var(--text-muted)',
+              transition: 'all 0.2s'
+            }}
+            onClick={() => handleTypeChange('OUT')}
+          >
+            📤 Pengeluaran (OUT)
+          </button>
+        </div>
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Kategori</label>
-            <select value={category} onChange={e => setCategory(e.target.value)} required>
-              <option value="Bahan Baku">Bahan Baku</option>
-              <option value="Gaji Pegawai">Gaji Pegawai</option>
-              <option value="Listrik/Air">Listrik / Air</option>
-              <option value="Sewa Tempat">Sewa Tempat</option>
-              <option value="Lain-lain">Lain-lain</option>
+            <select value={category} onChange={e => setCategory(e.target.value)} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid var(--border)' }}>
+              {categories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
             </select>
           </div>
           <div className="form-group">
-            <label>Nominal</label>
-            <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" min="1" required style={{ width: '100%', padding: '8px 12px' }} />
+            <label>Nominal (Rp)</label>
+            <input 
+              type="number" 
+              value={amount} 
+              onChange={e => setAmount(e.target.value)} 
+              placeholder="0" 
+              min="1" 
+              required 
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border)' }} 
+            />
           </div>
           <div className="form-group">
             <label>Keterangan</label>
-            <input type="text" value={description} onChange={e => setDescription(e.target.value)} placeholder="Opsional" style={{ width: '100%', padding: '8px 12px' }} />
+            <input 
+              type="text" 
+              value={description} 
+              onChange={e => setDescription(e.target.value)} 
+              placeholder="Contoh: Suntikan modal awal, Lebih stok SO" 
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--border)' }} 
+            />
           </div>
-          <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '28px' }}>
             <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={onClose}>Batal</button>
-            <button type="submit"  className="btn btn-danger"  style={{ flex: 1 }} disabled={isSubmitting}>
+            <button 
+              type="submit"  
+              className={`btn ${type === 'IN' ? 'btn-success' : 'btn-danger'}`}  
+              style={{ flex: 1, justifyContent: 'center' }} 
+              disabled={isSubmitting}
+            >
               {isSubmitting ? 'Menyimpan...' : 'Simpan'}
             </button>
           </div>

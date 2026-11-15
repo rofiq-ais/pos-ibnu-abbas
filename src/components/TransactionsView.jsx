@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { History, Eye, ChevronUp, ChevronDown, Download, X, RotateCcw, CheckSquare, Square } from 'lucide-react';
+import { History, Eye, ChevronUp, ChevronDown, Download, X, RotateCcw, CheckSquare, Square, Copy, Send, Check, Printer } from 'lucide-react';
 import { formatDate, formatCurrency, filterByTimeframe, exportToCSV } from '../utils';
 import { TimeframeFilter, defaultImage } from './Shared';
 
@@ -11,6 +11,157 @@ export function TransactionsView({ pos }) {
   const [statusFilter,     setStatusFilter]     = useState('all'); // 'all' | 'lunas' | 'kasbon'
   const [kasbonPaymentTxn, setKasbonPaymentTxn] = useState(null);
   const [refundTxn,        setRefundTxn]        = useState(null);
+  const [copiedId,         setCopiedId]         = useState(null);
+
+  const generateWaText = (transaction) => {
+    const date = new Date(transaction.date);
+    const dateStr = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeStr = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const isKasbon = transaction.amountPaid < transaction.total;
+    const changeText = isKasbon 
+      ? `*Sisa Tagihan (Kasbon):* Rp ${(transaction.total - transaction.amountPaid).toLocaleString('id-ID')}`
+      : `*Kembalian:* Rp ${transaction.change.toLocaleString('id-ID')}`;
+
+    const itemsText = transaction.items.map((item) => {
+      return `• *${item.name}*\n  ${item.quantity} x Rp ${item.price.toLocaleString('id-ID')}  ➔  *Rp ${(item.price * item.quantity).toLocaleString('id-ID')}*`;
+    }).join('\n');
+
+    return `*☕ MA'HAD IBNU ABBAS - MAQSHOF ☕*
+----------------------------------------
+📝 *No. Transaksi:* \`${transaction.id}\`
+📅 *Tanggal:* ${dateStr}, ${timeStr}
+👤 *Pembeli:* *${transaction.customerName || 'santri'}*
+----------------------------------------
+
+🛒 *RINCIAN BELANJA:*
+${itemsText}
+
+----------------------------------------
+💰 *TOTAL:* *Rp ${transaction.total.toLocaleString('id-ID')}*
+💵 *Bayar:* Rp ${transaction.amountPaid.toLocaleString('id-ID')}
+🪙 ${changeText}
+----------------------------------------
+
+✨ *Terima kasih atas pembelian Anda!*
+_Barakallahu fiikum_`;
+  };
+
+  const handleCopyText = (txn) => {
+    const text = generateWaText(txn);
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(txn.id);
+      setTimeout(() => setCopiedId(null), 2000);
+    }).catch(err => {
+      console.error('Gagal menyalin teks: ', err);
+    });
+  };
+
+  const handlePrintPdf = (txn) => {
+    const date = new Date(txn.date);
+    const dateStr = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeStr = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const isKasbon = txn.amountPaid < txn.total;
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html lang="id">
+      <head>
+        <meta charset="UTF-8" />
+        <title>Struk - ${txn.id}</title>
+        <style>
+          @page { margin: 0; }
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          html, body {
+            width: 58mm;
+            max-width: 100%;
+            background: #fff;
+            color: #000;
+            margin: 0 auto;
+          }
+          body {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 11px;
+            padding: 4mm 2mm;
+            line-height: 1.2;
+          }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .divider { border-top: 1px dashed #000; margin: 6px 0; }
+          .logo-name { font-size: 14px; font-weight: bold; margin: 4px 0 2px; letter-spacing: 1px; }
+          .sub-name { font-size: 10px; margin-bottom: 4px; }
+          .txn-id { font-size: 9px; color: #333; margin-bottom: 2px; }
+          .item-row { display: flex; flex-direction: column; margin: 4px 0; }
+          .item-name { font-weight: bold; }
+          .item-detail-row { display: flex; justify-content: space-between; }
+          .item-subtotal { font-weight: bold; }
+          .summary-row { display: flex; justify-content: space-between; margin: 3px 0; }
+          .summary-row.total { font-size: 13px; font-weight: bold; margin-top: 6px; }
+          .status-kasbon { background: #f0f0f0; padding: 4px 6px; border: 1px dashed #333; border-radius: 4px; margin: 6px 0; text-align: center; font-weight: bold; }
+          .footer { margin-top: 10px; font-size: 9px; color: #333; }
+        </style>
+      </head>
+      <body>
+        <div class="center">
+          <div class="logo-name">MA'HAD IBNU ABBAS</div>
+          <div class="sub-name">Ibnu Abbas - Maqshof</div>
+          <div class="txn-id">${txn.id}</div>
+          <div class="txn-id">${dateStr} ${timeStr}</div>
+          <div class="txn-id">Pembeli: <strong>${txn.customerName || 'santri'}</strong></div>
+        </div>
+
+        <div class="divider"></div>
+
+        ${txn.items.map(item => `
+          <div class="item-row">
+            <div class="bold">${item.name}</div>
+            <div class="item-detail-row">
+              <span>${item.quantity} x Rp ${item.price.toLocaleString('id-ID')}</span>
+              <span class="bold">Rp ${(item.price * item.quantity).toLocaleString('id-ID')}</span>
+            </div>
+          </div>
+        `).join('')}
+
+        <div class="divider"></div>
+
+        <div class="summary-row total">
+          <span>TOTAL</span><span>Rp ${txn.total.toLocaleString('id-ID')}</span>
+        </div>
+        <div class="summary-row">
+          <span>Dibayar</span><span>Rp ${txn.amountPaid.toLocaleString('id-ID')}</span>
+        </div>
+        ${!isKasbon ? `
+        <div class="summary-row change">
+          <span>Kembalian</span><span>Rp ${txn.change.toLocaleString('id-ID')}</span>
+        </div>` : `
+        <div class="status-kasbon">⚠ KASBON — Sisa: Rp ${(txn.total - txn.amountPaid).toLocaleString('id-ID')}</div>`}
+
+        <div class="divider"></div>
+        <div class="center footer">
+          <div>Terima kasih atas pembelian Anda!</div>
+          <div>Barakallahu fiikum</div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    iframe.contentDocument.write(printContent);
+    iframe.contentDocument.close();
+    
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    }, 500);
+
+    iframe.contentWindow.onafterprint = () => {
+      setTimeout(() => {
+        document.body.removeChild(iframe);
+      }, 1000);
+    };
+  };
 
   const toggleExpand = (id) => setExpandedId(prev => prev === id ? null : id);
 
@@ -175,6 +326,24 @@ export function TransactionsView({ pos }) {
                                     </button>
                                   </div>
                                 )}
+
+                                {/* WhatsApp E-Bill options */}
+                                <button
+                                  className={`btn ${copiedId === txn.id ? 'btn-success' : 'btn-outline'}`}
+                                  style={{ gap: '8px', display: 'flex', alignItems: 'center', transition: 'all 0.2s ease', borderColor: copiedId === txn.id ? 'var(--secondary)' : 'var(--border)' }}
+                                  onClick={e => { e.stopPropagation(); handleCopyText(txn); }}
+                                >
+                                  {copiedId === txn.id ? <Check size={16} color="white" /> : <Copy size={16} />}
+                                  {copiedId === txn.id ? 'Teks Tersalin!' : 'Salin Format WA'}
+                                </button>
+
+                                <button
+                                  className="btn btn-outline"
+                                  style={{ gap: '8px', display: 'flex', alignItems: 'center' }}
+                                  onClick={e => { e.stopPropagation(); handlePrintPdf(txn); }}
+                                >
+                                  <Printer size={16} /> Cetak PDF
+                                </button>
 
                                 {/* Refund button */}
                                 <button

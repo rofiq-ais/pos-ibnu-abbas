@@ -57,7 +57,7 @@ export function usePOS() {
           item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      return [...prevCart, { ...product, quantity: 1 }];
+      return [...prevCart, { ...product, quantity: product.quantity || 1 }];
     });
   };
 
@@ -190,7 +190,8 @@ export function usePOS() {
   // Product management
   const addProduct = async (product) => {
     const existingProduct = products.find(p => p.name.toLowerCase() === product.name.toLowerCase());
-    const productPayload = existingProduct ? { ...product, id: existingProduct.id } : product;
+    const absoluteStock = existingProduct ? existingProduct.stock + product.stock : product.stock;
+    const productPayload = existingProduct ? { ...product, id: existingProduct.id, stock: absoluteStock } : product;
 
     // Helper: commit to local state (used in both online & offline mode)
     const commitProductLocal = (id) => {
@@ -199,7 +200,7 @@ export function usePOS() {
           p.id === existingProduct.id
             ? {
                 ...p,
-                stock: p.stock + product.stock,
+                stock: absoluteStock,
                 minStock: product.minStock || p.minStock,
                 costPrice: product.costPrice || p.costPrice,
                 price: product.price || p.price
@@ -253,6 +254,43 @@ export function usePOS() {
       setProducts(products.filter(p => p.id !== id));
     } catch (e) {
       console.error('Failed to delete', e);
+    }
+  };
+
+  // ── Restock Produk ───────────────────────────────────────────────────────
+  const restockProduct = async (items) => {
+    // items: [{ id, name, quantity, costPrice }]
+    try {
+      const res = await fetch('/api/restock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items }),
+      });
+      if (!res.ok) throw new Error('Restock gagal');
+
+      // Update local stock state
+      setProducts(prev => prev.map(p => {
+        const ri = items.find(i => i.id === p.id);
+        return ri ? { ...p, stock: p.stock + ri.quantity } : p;
+      }));
+
+      // Catat ke local cashflow jika ada costPrice
+      const newEntries = items
+        .filter(i => i.costPrice > 0)
+        .map(i => ({
+          id: `RST-${i.id}-${Date.now()}`,
+          type: 'OUT',
+          category: 'Restock',
+          amount: i.quantity * i.costPrice,
+          description: `Restock ${i.name} (+${i.quantity} unit)`,
+          created_at: new Date().toISOString(),
+        }));
+      if (newEntries.length > 0) setCashFlow(prev => [...newEntries, ...prev]);
+
+      return { success: true };
+    } catch (e) {
+      console.error(e);
+      return { success: false, message: e.message };
     }
   };
 
@@ -352,10 +390,11 @@ export function usePOS() {
       });
     });
 
-    const topProducts = Object.entries(productSales)
+    const allTopProducts = Object.entries(productSales)
       .map(([name, quantity]) => ({ name, quantity }))
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 5);
+      .sort((a, b) => b.quantity - a.quantity);
+
+    const topProducts = allTopProducts.slice(0, 5);
 
     const categorySales = Object.entries(categorySalesMap)
       .map(([category, revenue]) => ({ category, revenue }))
@@ -379,6 +418,7 @@ export function usePOS() {
       transactionCount: filteredTransactions.length,
       lowStockCount: products.filter(p => p.stock <= (p.minStock || 0)).length,
       topProducts,
+      allTopProducts,
       categorySales,
       peakHour,
       peakHourCount: maxTxnHour
@@ -386,28 +426,43 @@ export function usePOS() {
   };
 
   // Cash flow management
-  const addExpense = async (expense) => {
+  const addCashFlow = async (entry) => {
+    const id = `CF-${Date.now()}`;
+    const newRecord = {
+      ...entry,
+      id,
+      created_at: entry.created_at || new Date().toISOString()
+    };
+
     try {
       const res = await fetch('/api/cashflow', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...expense, type: 'OUT' })
+        body: JSON.stringify(entry)
       });
-      if (!res.ok) throw new Error('Failed to save expense');
-      
+
+      if (!res.ok) {
+        console.warn('[POS] API cashflow tidak tersedia, entri disimpan lokal (offline mode).');
+        setCashFlow(prev => [newRecord, ...prev]);
+        return { success: true, offlineMode: true };
+      }
+
       const data = await res.json();
-      const newRecord = {
-        ...expense,
-        id: data.id,
-        type: 'OUT',
-        created_at: expense.created_at || new Date().toISOString()
+      const savedRecord = {
+        ...newRecord,
+        id: data.id || id
       };
-      setCashFlow([newRecord, ...cashFlow]);
+      setCashFlow(prev => [savedRecord, ...prev]);
       return { success: true };
     } catch (e) {
-      console.error(e);
-      return { success: false, message: 'Server error' };
+      console.warn('[POS] Network error, entri cashflow disimpan lokal:', e.message);
+      setCashFlow(prev => [newRecord, ...prev]);
+      return { success: true, offlineMode: true };
     }
+  };
+
+  const addExpense = async (expense) => {
+    return addCashFlow({ ...expense, type: 'OUT' });
   };
 
   return {
@@ -431,6 +486,8 @@ export function usePOS() {
     deleteProduct,
     stockOpname,
     getDashboardStats,
-    addExpense
+    addExpense,
+    addCashFlow,
+    restockProduct
   };
 }

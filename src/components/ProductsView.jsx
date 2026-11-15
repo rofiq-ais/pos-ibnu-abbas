@@ -1,13 +1,14 @@
-import { useState } from 'react';
-import { Search, Plus, Trash2, AlertTriangle, X, ClipboardList, Minus, Check } from 'lucide-react';
-import { formatCurrency } from '../utils';
+import { useState, useRef } from 'react';
+import { Search, Plus, Trash2, AlertTriangle, X, ClipboardList, Minus, Check, Camera, Upload, Image as ImageIcon, Link as LinkIcon } from 'lucide-react';
+import { formatCurrency, compressImage } from '../utils';
 import { defaultImage } from './Shared';
 
 // ── ProductsView ──────────────────────────────────────────────────────────────
-export function ProductsView({ pos }) {
+export function ProductsView({ pos, filterLowStock, setFilterLowStock }) {
   const [isModalOpen,    setIsModalOpen]    = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   const [searchTerm,     setSearchTerm]     = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('All');
   const [productToDelete,setProductToDelete]= useState(null);
   const [expandedId,     setExpandedId]     = useState(null);
 
@@ -20,12 +21,14 @@ export function ProductsView({ pos }) {
   const handleEdit   = (product) => { setEditingProduct(product); setIsModalOpen(true); };
   const handleCloseModal = () => { setIsModalOpen(false); setEditingProduct(null); };
 
-  const categories = [...new Set(pos.products.map(p => p.category))];
+  const categories = ['All', ...new Set(pos.products.map(p => p.category))];
 
-  const filteredProducts = pos.products.filter(p =>
-    p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = pos.products.filter(p => {
+    if (filterLowStock && p.stock > (p.minStock || 0)) return false;
+    if (categoryFilter !== 'All' && p.category !== categoryFilter) return false;
+    return p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+           p.category.toLowerCase().includes(searchTerm.toLowerCase());
+  });
 
   // SO helpers
   const getSoVal = (product) =>
@@ -60,11 +63,41 @@ export function ProductsView({ pos }) {
   return (
     <div style={{ paddingBottom: '80px' }}>
       {/* Header row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Daftar Produk</h2>
-        <div className="search-input-wrapper" style={{ maxWidth: '300px', flex: 1 }}>
-          <Search size={18} />
-          <input type="text" placeholder="Cari nama atau kategori..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: '100%' }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', alignItems: 'center' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: '700' }}>Daftar Produk</h2>
+          <div style={{ display: 'flex', gap: '8px', flex: 1, justifyContent: 'flex-end' }}>
+            <button 
+              className={`btn ${filterLowStock ? 'btn-danger' : 'btn-outline'}`}
+              onClick={() => setFilterLowStock(!filterLowStock)}
+            >
+              Barang Habis
+            </button>
+            <div className="search-input-wrapper" style={{ maxWidth: '300px', flex: 1 }}>
+              <input type="text" placeholder="Cari nama atau kategori..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} style={{ width: '100%' }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Category Filter */}
+                <div className="category-chips" onWheel={(e) => { e.preventDefault(); e.currentTarget.scrollLeft += e.deltaY; }}>
+          {categories.map(c => (
+            <button 
+              key={c} 
+              className={`category-chip ${categoryFilter === c ? 'active' : ''}`}
+              onClick={() => {
+                  setCategoryFilter(c);
+                  if (c !== 'All') {
+                    setTimeout(() => {
+                      const active = document.querySelector('.category-chip.active');
+                      if (active) active.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+                    }, 0);
+                  }
+                }}
+            >
+              {c === 'All' ? 'Semua Kategori' : c}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -240,16 +273,49 @@ function ProductModal({ onClose, onSave, editingProduct, categories = [] }) {
     barcode:   editingProduct?.barcode   || '',
   });
 
+  const [showCostWarning, setShowCostWarning] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
+  const [compressError, setCompressError] = useState('');
+  const [showUrlInput, setShowUrlInput] = useState(Boolean(formData.image && formData.image.startsWith('http')));
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsCompressing(true);
+    setCompressError('');
+    try {
+      const compressedDataUrl = await compressImage(file, 480, 480, 0.82);
+      setFormData(prev => ({ ...prev, image: compressedDataUrl }));
+    } catch (err) {
+      setCompressError(err.message || 'Gagal memproses gambar');
+    } finally {
+      setIsCompressing(false);
+      e.target.value = '';
+    }
+  };
+
   const set = (field) => (e) => setFormData(prev => ({ ...prev, [field]: e.target.value }));
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    const numeric = { costPrice: Number(formData.costPrice), price: Number(formData.price), minStock: Number(formData.minStock) };
+    if (formData.costPrice === '' || formData.costPrice === null || formData.costPrice === undefined) {
+      setShowCostWarning(true);
+      return;
+    }
+    proceedSave();
+  };
+
+  const proceedSave = () => {
+    const numeric = { costPrice: Number(formData.costPrice) || 0, price: Number(formData.price), minStock: Number(formData.minStock) };
     if (editingProduct) {
       onSave({ ...formData, ...numeric, stock: editingProduct.stock + Number(formData.stock) });
     } else {
       onSave({ ...formData, ...numeric, stock: Number(formData.stock) });
     }
+    setShowCostWarning(false);
   };
 
   return (
@@ -263,8 +329,7 @@ function ProductModal({ onClose, onSave, editingProduct, categories = [] }) {
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Nama Produk</label>
-            <input type="text" value={formData.name} onChange={set('name')} required disabled={!!editingProduct} />
-            {editingProduct && <small style={{ color: 'var(--text-muted)' }}>Nama produk tidak dapat diubah</small>}
+            <input type="text" value={formData.name} onChange={set('name')} required />
           </div>
 
           <div className="form-group">
@@ -281,7 +346,7 @@ function ProductModal({ onClose, onSave, editingProduct, categories = [] }) {
           <div style={{ display: 'flex', gap: '16px' }}>
             <div className="form-group" style={{ flex: 1 }}>
               <label>Harga Modal (HPP)</label>
-              <input type="number" value={formData.costPrice} onChange={set('costPrice')} required min="0" />
+              <input type="number" value={formData.costPrice} onChange={set('costPrice')} min="0" />
             </div>
             <div className="form-group" style={{ flex: 1 }}>
               <label>Harga Jual</label>
@@ -301,8 +366,151 @@ function ProductModal({ onClose, onSave, editingProduct, categories = [] }) {
           </div>
 
           <div className="form-group">
-            <label>URL Gambar (Opsional)</label>
-            <input type="url" value={formData.image} onChange={set('image')} placeholder="https://..." />
+            <label>Foto Produk (Opsional)</label>
+            <div style={{
+              display: 'flex',
+              gap: '12px',
+              alignItems: 'center',
+              padding: '12px',
+              background: '#f8fafc',
+              borderRadius: '8px',
+              border: '1px solid #e2e8f0',
+              marginTop: '4px'
+            }}>
+              {/* Preview Thumbnail */}
+              <div style={{
+                width: '76px',
+                height: '76px',
+                borderRadius: '8px',
+                background: '#ffffff',
+                border: '1px dashed #cbd5e1',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                flexShrink: 0
+              }}>
+                {formData.image ? (
+                  <>
+                    <img
+                      src={formData.image}
+                      alt="Preview"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, image: '' }))}
+                      title="Hapus foto"
+                      style={{
+                        position: 'absolute',
+                        top: '3px',
+                        right: '3px',
+                        background: 'rgba(239, 68, 68, 0.9)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '18px',
+                        height: '18px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                    >
+                      <X size={11} />
+                    </button>
+                  </>
+                ) : (
+                  <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                    <ImageIcon size={26} style={{ margin: '0 auto', display: 'block' }} />
+                    <span style={{ fontSize: '10px' }}>No Foto</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Upload Action Buttons */}
+              <div style={{ flex: 1 }}>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={handleFileChange}
+                />
+                <input
+                  type="file"
+                  ref={cameraInputRef}
+                  accept="image/*"
+                  capture="environment"
+                  style={{ display: 'none' }}
+                  onChange={handleFileChange}
+                />
+
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ padding: '6px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={isCompressing}
+                    title="Buka kamera perangkat langsung"
+                  >
+                    <Camera size={14} /> Kamera
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ padding: '6px 10px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isCompressing}
+                    title="Pilih gambar dari galeri / file komputer"
+                  >
+                    <Upload size={14} /> File / Galeri
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    style={{ padding: '6px 8px', fontSize: '11px', color: '#64748b' }}
+                    onClick={() => setShowUrlInput(prev => !prev)}
+                    title="Input URL manual"
+                  >
+                    <LinkIcon size={13} />
+                  </button>
+                </div>
+
+                {isCompressing && (
+                  <span style={{ fontSize: '11px', color: '#4f46e5', display: 'block' }}>
+                    Mengompres foto...
+                  </span>
+                )}
+
+                {compressError && (
+                  <span style={{ fontSize: '11px', color: '#ef4444', display: 'block' }}>
+                    {compressError}
+                  </span>
+                )}
+
+                {showUrlInput && (
+                  <div style={{ marginTop: '6px' }}>
+                    <input
+                      type="url"
+                      value={formData.image}
+                      onChange={set('image')}
+                      placeholder="Atau tempel URL: https://..."
+                      style={{ width: '100%', fontSize: '12px', padding: '4px 8px' }}
+                    />
+                  </div>
+                )}
+                
+                <span style={{ fontSize: '11px', color: '#64748b', display: 'block', marginTop: '2px' }}>
+                  Bisa jepret foto langsung dari HP atau upload file (otomatis dikompres &lt; 40KB).
+                </span>
+              </div>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
@@ -311,6 +519,24 @@ function ProductModal({ onClose, onSave, editingProduct, categories = [] }) {
           </div>
         </form>
       </div>
+
+      {showCostWarning && (
+        <div className="modal-overlay" style={{ zIndex: 10000 }}>
+          <div className="modal-content" style={{ maxWidth: '350px', textAlign: 'center', padding: '32px 24px' }}>
+            <div style={{ color: 'var(--warning, #f59e0b)', marginBottom: '16px', display: 'flex', justifyContent: 'center' }}>
+              <AlertTriangle size={48} />
+            </div>
+            <h3 style={{ marginBottom: '8px' }}>Harga Modal Kosong</h3>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
+              Anda tidak mengisi Harga Modal (HPP). Apakah Anda yakin ingin mengosongkannya (dianggap Rp 0)?
+            </p>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setShowCostWarning(false)}>Batal</button>
+              <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={proceedSave}>Yakin</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

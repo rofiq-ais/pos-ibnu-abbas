@@ -6,6 +6,7 @@ import { TimeframeFilter, getTimeframeLabel } from './Shared';
 export function DashboardView({ pos, setActiveTab }) {
   const [timeframe, setTimeframe] = useState('today');
   const [customDate, setCustomDate] = useState('');
+  const [showAllProducts, setShowAllProducts] = useState(false);
 
   const stats    = pos.getDashboardStats(timeframe, customDate);
   const tfLabel  = getTimeframeLabel(timeframe, customDate);
@@ -53,7 +54,7 @@ export function DashboardView({ pos, setActiveTab }) {
         <div className="dashboard-card">
           <div className="card-header">
             <h3>Produk Terlaris</h3>
-            <button className="btn-text" onClick={() => setActiveTab('products')}>Lihat Semua</button>
+            <button className="btn-text" onClick={() => setShowAllProducts(true)}>Lihat Semua</button>
           </div>
           <div className="top-products-list">
             {stats.topProducts.length === 0 ? (
@@ -122,6 +123,42 @@ export function DashboardView({ pos, setActiveTab }) {
 
         </div>
       </div>
+
+      {/* ── All Sold Products Modal ── */}
+      {showAllProducts && (
+        <div className="modal-overlay" style={{ zIndex: 9999 }}>
+          <div className="modal-content" style={{ maxWidth: '500px', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', alignItems: 'center' }}>
+              <h2>Semua Produk Terjual</h2>
+              <button className="btn-icon" onClick={() => setShowAllProducts(false)} style={{ padding: 0 }}>
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+            
+            <div className="top-products-list" style={{ overflowY: 'auto', flex: 1, paddingRight: '8px' }}>
+              {stats.allTopProducts.length === 0 ? (
+                <div className="empty-state" style={{ minHeight: '150px' }}><p>Belum ada data penjualan.</p></div>
+              ) : stats.allTopProducts.map((p, idx) => {
+                const pct = (p.quantity / (stats.allTopProducts[0]?.quantity || 1)) * 100;
+                return (
+                  <div key={idx} className="top-product-item">
+                    <div className="product-rank">{idx + 1}</div>
+                    <div className="product-details">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span className="product-name">{p.name}</span>
+                        <span className="product-qty">{p.quantity} terjual</span>
+                      </div>
+                      <div className="progress-bar-container">
+                        <div className="progress-bar" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

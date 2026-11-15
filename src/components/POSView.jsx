@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Package, ShoppingBag, X, CreditCard, Minus, Plus, Trash2, Camera } from 'lucide-react';
+import { Search, Package, ShoppingBag, X, CreditCard, Minus, Plus, Trash2, Camera, Copy, Send, Check, Printer, PlusCircle } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { formatCurrency } from '../utils';
 import { defaultImage } from './Shared';
@@ -13,6 +13,8 @@ export function POSView({ pos }) {
   const [showMobileCart,     setShowMobileCart]     = useState(false);
   const [successTransaction, setSuccessTransaction] = useState(null); // { transaction, offlineMode }
   const [showCameraScanner,  setShowCameraScanner]  = useState(false);
+  const [showSearchInput,    setShowSearchInput]    = useState(true);
+  const [showManualItemModal, setShowManualItemModal] = useState(false);
 
   // Audio Beep generator
   const playBeep = () => {
@@ -123,17 +125,54 @@ export function POSView({ pos }) {
 
       {/* ── Product Grid ── */}
       <div className="products-section">
-        <div className="search-bar">
-          <div className="search-input-wrapper">
-            <Search size={18} />
-            <input type="text" placeholder="Cari produk..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+        <div className="products-header">
+          <div className="search-bar" style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              className="btn btn-outline" 
+              style={{ width: '44px', height: '44px', padding: 0, justifyContent: 'center', borderRadius: '12px', flexShrink: 0 }} 
+              onClick={() => setShowCameraScanner(true)}
+              title="Scan Kamera"
+            >
+              <Camera size={20} />
+            </button>
+
+            <div className="search-input-wrapper" style={{ flex: 1, display: 'flex', alignItems: 'center' }}>
+              <Search size={18} style={{ flexShrink: 0 }} />
+              <input 
+                type="text" 
+                placeholder="Cari produk..." 
+                value={searchTerm} 
+                onChange={e => setSearchTerm(e.target.value)} 
+                autoFocus
+                style={{ flex: 1, minWidth: 0 }}
+              />
+            </div>
           </div>
-          <select value={category} onChange={e => setCategory(e.target.value)}>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          <button className="btn btn-outline" style={{ gap: '8px', height: '44px', borderRadius: '12px' }} onClick={() => setShowCameraScanner(true)}>
-            <Camera size={18} /> Scan Kamera
-          </button>
+
+          {/* Deretan chip kategori */}
+          <div className="category-chips" onWheel={(e) => { e.preventDefault(); e.currentTarget.scrollLeft += e.deltaY; }}>
+            {categories.map(c => (
+              <button 
+                key={c} 
+                className={`category-chip ${category === c ? 'active' : ''}`}
+                onClick={() => {
+                  setCategory(c);
+                  // Center the active chip horizontally on larger screens (skip 'All')
+                  if (c !== 'All') {
+                    // Use a short timeout to wait for state update/render
+                    setTimeout(() => {
+                      const active = document.querySelector('.category-chip.active');
+                      if (active) {
+                        active.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+                      }
+                    }, 0);
+                  }
+                }}
+              >
+                {c === 'All' ? 'Semua Kategori' : c}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="products-grid">
@@ -159,7 +198,7 @@ export function POSView({ pos }) {
 
       {/* ── Desktop Cart ── */}
       <div className="cart-section desktop-cart">
-        <CartContent pos={pos} customerName={customerName} setCustomerName={setCustomerName} onCheckout={() => setShowCheckout(true)} />
+        <CartContent pos={pos} customerName={customerName} setCustomerName={setCustomerName} onCheckout={() => setShowCheckout(true)} onAddManualItemClick={() => setShowManualItemModal(true)} />
       </div>
 
       {/* ── Mobile Cart Bar ── Sembunyikan saat checkout modal aktif */}
@@ -193,6 +232,7 @@ export function POSView({ pos }) {
                 customerName={customerName}
                 setCustomerName={setCustomerName}
                 onCheckout={() => { setShowMobileCart(false); setShowCheckout(true); }}
+                onAddManualItemClick={() => setShowManualItemModal(true)}
               />
             </div>
           </div>
@@ -223,6 +263,14 @@ export function POSView({ pos }) {
         <CameraScannerModal
           onClose={() => setShowCameraScanner(false)}
           onScan={handleCameraScan}
+        />
+      )}
+
+      {/* ── Manual Item Modal ── */}
+      {showManualItemModal && (
+        <ManualItemModal
+          onClose={() => setShowManualItemModal(false)}
+          onAdd={(item) => pos.addToCart(item)}
         />
       )}
     </div>
@@ -367,7 +415,7 @@ function CameraScannerModal({ onClose, onScan }) {
 }
 
 // ── CartContent ───────────────────────────────────────────────────────────────
-function CartContent({ pos, customerName, setCustomerName, onCheckout }) {
+function CartContent({ pos, customerName, setCustomerName, onCheckout, onAddManualItemClick }) {
   const cartTotal = pos.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   return (
     <>
@@ -388,7 +436,10 @@ function CartContent({ pos, customerName, setCustomerName, onCheckout }) {
             }}
           />
         </div>
-        <button className="btn-icon" onClick={pos.clearCart} title="Kosongkan Keranjang"><Trash2 size={20} /></button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn-icon" onClick={onAddManualItemClick} title="Input Barang Manual"><PlusCircle size={20} /></button>
+          <button className="btn-icon" onClick={pos.clearCart} title="Kosongkan Keranjang"><Trash2 size={20} /></button>
+        </div>
       </div>
 
       <div className="cart-items">
@@ -525,20 +576,56 @@ function CheckoutModal({ total, customerName, onClose, onCheckout }) {
 
 // ── TransactionSuccessModal ───────────────────────────────────────────────────
 function TransactionSuccessModal({ transaction, offlineMode, onClose }) {
+  const [copied, setCopied] = useState(false);
 
-  const handlePrint = () => {
+  const generateWaText = () => {
     const date = new Date(transaction.date);
     const dateStr = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
     const timeStr = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
     const isKasbon = transaction.amountPaid < transaction.total;
+    const changeText = isKasbon 
+      ? `*Sisa Tagihan (Kasbon):* Rp ${(transaction.total - transaction.amountPaid).toLocaleString('id-ID')}`
+      : `*Kembalian:* Rp ${transaction.change.toLocaleString('id-ID')}`;
 
-    const itemsHtml = transaction.items.map(item => `
-      <div class="item-row">
-        <span class="item-name">${item.name}</span>
-        <span class="item-detail">${item.quantity} x Rp ${item.price.toLocaleString('id-ID')}</span>
-        <span class="item-subtotal">Rp ${(item.price * item.quantity).toLocaleString('id-ID')}</span>
-      </div>
-    `).join('');
+    const itemsText = transaction.items.map((item) => {
+      return `• *${item.name}*\n  ${item.quantity} x Rp ${item.price.toLocaleString('id-ID')}  ➔  *Rp ${(item.price * item.quantity).toLocaleString('id-ID')}*`;
+    }).join('\n');
+
+    return `*☕ MA'HAD IBNU ABBAS - MAQSHOF ☕*
+----------------------------------------
+📝 *No. Transaksi:* \`${transaction.id}\`
+📅 *Tanggal:* ${dateStr}, ${timeStr}
+👤 *Pembeli:* *${transaction.customerName || 'santri'}*
+----------------------------------------
+
+🛒 *RINCIAN BELANJA:*
+${itemsText}
+
+----------------------------------------
+💰 *TOTAL:* *Rp ${transaction.total.toLocaleString('id-ID')}*
+💵 *Bayar:* Rp ${transaction.amountPaid.toLocaleString('id-ID')}
+🪙 ${changeText}
+----------------------------------------
+
+✨ *Terima kasih atas pembelian Anda!*
+_Barakallahu fiikum_`;
+  };
+
+  const handleCopyText = () => {
+    const text = generateWaText();
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(err => {
+      console.error('Gagal menyalin teks: ', err);
+    });
+  };
+
+  const handlePrintPdf = () => {
+    const date = new Date(transaction.date);
+    const dateStr = date.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+    const timeStr = date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+    const isKasbon = transaction.amountPaid < transaction.total;
 
     const printContent = `
       <!DOCTYPE html>
@@ -547,12 +634,10 @@ function TransactionSuccessModal({ transaction, offlineMode, onClose }) {
         <meta charset="UTF-8" />
         <title>Struk - ${transaction.id}</title>
         <style>
-          @page { 
-            margin: 0; 
-          }
+          @page { margin: 0; }
           * { box-sizing: border-box; margin: 0; padding: 0; }
           html, body {
-            width: 58mm; /* Sesuaikan dengan ukuran printer Eyes58mm */
+            width: 58mm;
             max-width: 100%;
             background: #fff;
             color: #000;
@@ -560,31 +645,30 @@ function TransactionSuccessModal({ transaction, offlineMode, onClose }) {
           }
           body {
             font-family: 'Courier New', Courier, monospace;
-            font-size: 12px;
+            font-size: 11px;
             padding: 4mm 2mm;
+            line-height: 1.2;
           }
           .center { text-align: center; }
           .bold { font-weight: bold; }
           .divider { border-top: 1px dashed #000; margin: 6px 0; }
-          .logo-name { font-size: 15px; font-weight: bold; margin: 4px 0 2px; letter-spacing: 1px; }
-          .sub-name { font-size: 11px; margin-bottom: 4px; }
-          .txn-id { font-size: 10px; color: #555; margin-bottom: 2px; }
+          .logo-name { font-size: 14px; font-weight: bold; margin: 4px 0 2px; letter-spacing: 1px; }
+          .sub-name { font-size: 10px; margin-bottom: 4px; }
+          .txn-id { font-size: 9px; color: #333; margin-bottom: 2px; }
           .item-row { display: flex; flex-direction: column; margin: 4px 0; }
           .item-name { font-weight: bold; }
           .item-detail-row { display: flex; justify-content: space-between; }
-          .item-detail { color: #333; }
           .item-subtotal { font-weight: bold; }
           .summary-row { display: flex; justify-content: space-between; margin: 3px 0; }
-          .summary-row.total { font-size: 14px; font-weight: bold; margin-top: 6px; }
-          .summary-row.change { color: #333; }
+          .summary-row.total { font-size: 13px; font-weight: bold; margin-top: 6px; }
           .status-kasbon { background: #f0f0f0; padding: 4px 6px; border: 1px dashed #333; border-radius: 4px; margin: 6px 0; text-align: center; font-weight: bold; }
-          .footer { margin-top: 10px; font-size: 10px; color: #555; }
+          .footer { margin-top: 10px; font-size: 9px; color: #333; }
         </style>
       </head>
       <body>
         <div class="center">
-          <div class="logo-name">IBNU ABBAS</div>
-          <div class="sub-name">Ma'had Ibnu Abbas - Maqshof</div>
+          <div class="logo-name">MA'HAD IBNU ABBAS</div>
+          <div class="sub-name">Ibnu Abbas - Maqshof</div>
           <div class="txn-id">${transaction.id}</div>
           <div class="txn-id">${dateStr} ${timeStr}</div>
           <div class="txn-id">Pembeli: <strong>${transaction.customerName || 'santri'}</strong></div>
@@ -632,13 +716,11 @@ function TransactionSuccessModal({ transaction, offlineMode, onClose }) {
     iframe.contentDocument.write(printContent);
     iframe.contentDocument.close();
     
-    // Tunggu konten selesai dimuat sebelum mencetak
     setTimeout(() => {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
     }, 500);
 
-    // Hapus iframe setelah dialog print ditutup
     iframe.contentWindow.onafterprint = () => {
       setTimeout(() => {
         document.body.removeChild(iframe);
@@ -648,7 +730,7 @@ function TransactionSuccessModal({ transaction, offlineMode, onClose }) {
 
   return (
     <div className="modal-overlay">
-      <div className="modal-content success-modal">
+      <div className="modal-content success-modal" style={{ maxWidth: '460px' }}>
         <div className="success-icon-wrapper">
           <div className="success-icon">
             <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -664,6 +746,7 @@ function TransactionSuccessModal({ transaction, offlineMode, onClose }) {
           )}
         </div>
 
+        {/* E-Bill Visual Box */}
         <div className="txn-receipt">
           <div className="receipt-header">
             <span className="receipt-id">{transaction.id}</span>
@@ -683,26 +766,128 @@ function TransactionSuccessModal({ transaction, offlineMode, onClose }) {
             <div className="receipt-row"><span>Pembeli</span><span><strong>{transaction.customerName || 'santri'}</strong></span></div>
             <div className="receipt-row"><span>Total Belanja</span><span><strong>{formatCurrency(transaction.total)}</strong></span></div>
             <div className="receipt-row"><span>Dibayar</span><span>{formatCurrency(transaction.amountPaid)}</span></div>
-            <div className="receipt-row change-row"><span>Kembalian</span><span className="change-highlight">{formatCurrency(transaction.change)}</span></div>
+            <div className="receipt-row change-row">
+              <span>{transaction.amountPaid < transaction.total ? 'Sisa Tagihan' : 'Kembalian'}</span>
+              <span className="change-highlight">
+                {transaction.amountPaid < transaction.total 
+                  ? formatCurrency(transaction.total - transaction.amountPaid)
+                  : formatCurrency(transaction.change)}
+              </span>
+            </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-          <button
-            className="btn btn-outline"
-            style={{ flex: 1, gap: '8px' }}
-            onClick={handlePrint}
-          >
-            🖨️ Cetak Struk
-          </button>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '20px' }}>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              className={`btn ${copied ? 'btn-success' : 'btn-outline'}`}
+              style={{ flex: 1, gap: '8px', justifyContent: 'center', transition: 'all 0.2s ease', borderColor: copied ? 'var(--secondary)' : 'var(--border)' }}
+              onClick={handleCopyText}
+            >
+              {copied ? <Check size={18} color="white" /> : <Copy size={18} />}
+              {copied ? 'Teks Tersalin!' : 'Salin Format WA'}
+            </button>
+            <button
+              className="btn btn-outline"
+              style={{ flex: 1, gap: '8px', justifyContent: 'center' }}
+              onClick={handlePrintPdf}
+            >
+              <Printer size={18} />
+              Cetak PDF
+            </button>
+          </div>
           <button
             className="btn btn-primary"
-            style={{ flex: 1 }}
+            style={{ width: '100%', justifyContent: 'center' }}
             onClick={onClose}
           >
             Selesai
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ManualItemModal ───────────────────────────────────────────────────────────
+function ManualItemModal({ onClose, onAdd }) {
+  const [name, setName] = useState('');
+  const [priceRaw, setPriceRaw] = useState('');
+  const [quantity, setQuantity] = useState(1);
+
+  const handlePriceInput = (e) => {
+    const num = parseInt(e.target.value.replace(/\D/g, ''), 10) || 0;
+    setPriceRaw(num === 0 ? '' : num.toLocaleString('id-ID'));
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    const price = parseInt(priceRaw.replace(/\D/g, ''), 10) || 0;
+    
+    onAdd({
+      id: `manual-${Date.now()}`,
+      name: name.trim() + ' (Manual)',
+      price,
+      stock: Infinity,
+      is_manual: true,
+      quantity
+    });
+    onClose();
+  };
+
+  return (
+    <div className="modal-overlay" style={{ zIndex: 1100 }}>
+      <div className="modal-content" style={{ maxWidth: '400px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h2>Input Barang Manual</h2>
+          <button className="btn-icon" onClick={onClose} style={{ padding: 0 }}><X size={24} /></button>
+        </div>
+        
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Nama Barang / Jasa</label>
+            <input 
+              type="text" 
+              value={name} 
+              onChange={e => setName(e.target.value)} 
+              placeholder="Contoh: Ongkos Kirim" 
+              required 
+              autoFocus 
+            />
+          </div>
+          
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Harga Satuan</label>
+            <div className="amount-input-wrapper">
+              <span className="currency-prefix">Rp</span>
+              <input 
+                type="text" 
+                inputMode="numeric" 
+                value={priceRaw} 
+                onChange={handlePriceInput} 
+                placeholder="0" 
+                required 
+                className="amount-input" 
+              />
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Jumlah</label>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button type="button" className="btn btn-outline" style={{ padding: '8px 12px' }} onClick={() => setQuantity(Math.max(1, quantity - 1))}><Minus size={16} /></button>
+              <span style={{ fontSize: '1.1rem', fontWeight: '600', minWidth: '30px', textAlign: 'center' }}>{quantity}</span>
+              <button type="button" className="btn btn-outline" style={{ padding: '8px 12px' }} onClick={() => setQuantity(quantity + 1)}><Plus size={16} /></button>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+            <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={onClose}>Batal</button>
+            <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={!name.trim()}>Tambahkan</button>
+          </div>
+        </form>
       </div>
     </div>
   );

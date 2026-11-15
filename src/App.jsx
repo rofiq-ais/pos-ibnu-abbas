@@ -8,6 +8,9 @@ import {
   Wallet,
   X,
   AlertCircle,
+  CheckCircle2,
+  Plus,
+  Minus,
 } from 'lucide-react';
 import { usePOS } from './hooks/usePOS';
 import { DashboardView } from './components/DashboardView';
@@ -18,8 +21,9 @@ import { CashFlowView } from './components/CashFlowView';
 import './index.css';
 
 function App() {
-  const [activeTab, setActiveTab] = useState('pos');
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [activeTab,        setActiveTab]        = useState('pos');
+  const [isMenuOpen,       setIsMenuOpen]       = useState(false);
+  const [filterLowStock,   setFilterLowStock]   = useState(false);
   const pos = usePOS();
 
   // Auto-hide error toast after 3 seconds
@@ -91,11 +95,18 @@ function App() {
 
           <div className="header-date" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '16px' }}>
             {lowStockCount > 0 && (
-              <div className="low-stock-alert" title={`${lowStockCount} item stok menipis`}>
+              <button
+                className="low-stock-alert low-stock-alert-btn"
+                title={`${lowStockCount} item stok menipis — klik untuk lihat detail`}
+                onClick={() => {
+                  setFilterLowStock(true);
+                  setActiveTab('products');
+                }}
+              >
                 <div className="pulse-dot" />
                 <Package size={16} />
                 <span>{lowStockCount} Stok Menipis</span>
-              </div>
+              </button>
             )}
             {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
           </div>
@@ -136,7 +147,7 @@ function App() {
           {activeTab === 'dashboard' && <DashboardView pos={pos} />}
           {activeTab === 'pos' && <POSView pos={pos} />}
           {activeTab === 'transactions' && <TransactionsView pos={pos} />}
-          {activeTab === 'products' && <ProductsView pos={pos} />}
+          {activeTab === 'products' && <ProductsView pos={pos} filterLowStock={filterLowStock} setFilterLowStock={setFilterLowStock} />}
           {activeTab === 'cashflow' && <CashFlowView pos={pos} />}
         </div>
 
