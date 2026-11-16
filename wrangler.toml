@@ -5,10 +5,10 @@ pages_build_output_dir = "dist"
 [[d1_databases]]
 binding = "DB"
 database_name = "pos-db"
-database_id = "92f46720-e167-4087-bda9-a026a5c91e8f"
+database_id = "28d4f19f-e82e-48f5-94e3-cc39eb2c6c15"
 
 [env.preview]
 [[env.preview.d1_databases]]
 binding = "DB"
 database_name = "pos-db-dev"
-database_id = "d12d25d2-2d95-4f4d-bea3-7ee803e1a3e3"
+database_id = "1e5d88d7-4c4b-4ea6-854a-d5e9a60c52de"
