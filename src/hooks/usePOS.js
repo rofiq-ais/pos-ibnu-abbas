@@ -386,7 +386,8 @@ export function usePOS() {
         
         // Category sales
         const itemRevenue = item.price * item.quantity;
-        categorySalesMap[item.category] = (categorySalesMap[item.category] || 0) + itemRevenue;
+        const catName = item.category || 'Lainnya';
+        categorySalesMap[catName] = (categorySalesMap[catName] || 0) + itemRevenue;
       });
     });
 

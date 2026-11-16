@@ -216,6 +216,19 @@ input::placeholder, textarea::placeholder {
   color: var(--text-main);
 }
 
+.header-date {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.header-date-short,
+.low-stock-text-short {
+  display: none;
+}
+
 .content-area {
   flex: 1;
   padding: 24px;
@@ -995,7 +1008,28 @@ tr:last-child td {
   }
 
   .header-date {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .header-date-full {
     display: none;
+  }
+
+  .header-date-short {
+    display: inline;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+
+  .low-stock-text-full {
+    display: none;
+  }
+
+  .low-stock-text-short {
+    display: inline;
+    font-weight: 700;
   }
 
   .desktop-cart {
@@ -1196,12 +1230,11 @@ tr:last-child td {
     font-size: 1rem;
   }
 
-  .low-stock-alert span {
-    display: none;
-  }
   .low-stock-alert {
-    padding: 6px;
-    border-radius: 50%;
+    padding: 4px 8px;
+    border-radius: 20px;
+    gap: 6px;
+    font-size: 0.75rem;
   }
 
   /* Reduce Button Sizes on Mobile */

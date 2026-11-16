@@ -93,7 +93,7 @@ function App() {
             <h1>{PAGE_TITLE[activeTab]}</h1>
           </div>
 
-          <div className="header-date" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div className="header-date">
             {lowStockCount > 0 && (
               <button
                 className="low-stock-alert low-stock-alert-btn"
@@ -105,10 +105,16 @@ function App() {
               >
                 <div className="pulse-dot" />
                 <Package size={16} />
-                <span>{lowStockCount} Stok Menipis</span>
+                <span className="low-stock-text-full">{lowStockCount} Stok Menipis</span>
+                <span className="low-stock-text-short">{lowStockCount}</span>
               </button>
             )}
-            {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            <span className="header-date-full">
+              {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+            </span>
+            <span className="header-date-short">
+              {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </span>
           </div>
         </div>
 

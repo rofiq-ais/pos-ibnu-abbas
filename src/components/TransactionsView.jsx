@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import { History, Eye, ChevronUp, ChevronDown, Download, X, RotateCcw, CheckSquare, Square, Copy, Send, Check, Printer } from 'lucide-react';
 import { formatDate, formatCurrency, filterByTimeframe, exportToCSV } from '../utils';
 import { TimeframeFilter, defaultImage } from './Shared';
@@ -242,8 +242,8 @@ _Barakallahu fiikum_`;
                   const isKasbon    = txn.amountPaid < txn.total;
                   const hasRefund   = txn.refundTotal > 0;
                   return (
-                    <>
-                      <tr key={txn.id} className="txn-row" onClick={() => toggleExpand(txn.id)}>
+                    <Fragment key={txn.id}>
+                      <tr className="txn-row" onClick={() => toggleExpand(txn.id)}>
                         <td data-label="ID Transaksi" style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
                           {txn.id}
                           {hasRefund && <span className="refund-pill">↩ Refund</span>}
@@ -357,7 +357,7 @@ _Barakallahu fiikum_`;
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
