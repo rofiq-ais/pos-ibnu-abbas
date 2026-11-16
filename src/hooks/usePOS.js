@@ -362,7 +362,7 @@ export function usePOS() {
   const getDashboardStats = (timeframe = 'today', customDate = null) => {
     const filteredTransactions = filterByTimeframe(transactions, 'date', timeframe, customDate);
 
-    const revenue = filteredTransactions.reduce((sum, t) => sum + t.total, 0);
+    const revenue = filteredTransactions.reduce((sum, t) => sum + (t.total - (t.refundTotal || t.refund_total || 0)), 0);
     const cost = filteredTransactions.reduce((sum, t) => {
       return sum + t.items.reduce((itemSum, item) => itemSum + (item.costPrice || 0) * item.quantity, 0);
     }, 0);

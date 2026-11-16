@@ -18,26 +18,35 @@ export const formatDate = (dateString) => {
 
 export const filterByTimeframe = (data, dateField, timeframe, customDate) => {
   const now = new Date();
-  const todayStr = now.toISOString().split('T')[0];
   const currentMonth = now.getMonth();
   const currentYear = now.getFullYear();
 
   return data.filter(item => {
     const itemDateStr = item[dateField];
+    if (!itemDateStr) return false;
     const itemDate = new Date(itemDateStr);
+    if (isNaN(itemDate.getTime())) return false;
     
     if (timeframe === 'today') {
-      return itemDateStr.startsWith(todayStr);
+      return (
+        itemDate.getFullYear() === now.getFullYear() &&
+        itemDate.getMonth() === now.getMonth() &&
+        itemDate.getDate() === now.getDate()
+      );
     } else if (timeframe === 'month') {
       return itemDate.getMonth() === currentMonth && itemDate.getFullYear() === currentYear;
     } else if (timeframe === 'year') {
       return itemDate.getFullYear() === currentYear;
     } else if (timeframe === 'custom_date' && customDate) {
-      return itemDateStr.startsWith(customDate); // format: YYYY-MM-DD
+      const [year, month, day] = customDate.split('-').map(Number);
+      return (
+        itemDate.getFullYear() === year &&
+        itemDate.getMonth() === month - 1 &&
+        itemDate.getDate() === day
+      );
     } else if (timeframe === 'custom_month' && customDate) {
-      // format: YYYY-MM
-      const [year, month] = customDate.split('-');
-      return itemDate.getFullYear() === parseInt(year) && itemDate.getMonth() === parseInt(month) - 1;
+      const [year, month] = customDate.split('-').map(Number);
+      return itemDate.getFullYear() === year && itemDate.getMonth() === month - 1;
     }
     return true; // 'all'
   });
