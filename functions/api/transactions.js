@@ -20,8 +20,8 @@ export async function onRequestPost(context) {
     // 1. Insert Transaction
     statements.push(
       context.env.DB.prepare(`
-        INSERT INTO transactions (id, date, customerName, total, amountPaid, change, items)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO transactions (id, date, customerName, total, amountPaid, change, items, cashierName)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         txn.id,
         txn.date,
@@ -29,7 +29,8 @@ export async function onRequestPost(context) {
         txn.total,
         txn.amountPaid,
         txn.change,
-        JSON.stringify(txn.items)
+        JSON.stringify(txn.items),
+        txn.cashierName || 'Ami Azzam'
       )
     );
 

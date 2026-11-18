@@ -30,6 +30,7 @@ export function TransactionsView({ pos }) {
 ----------------------------------------
 📝 *No. Transaksi:* \`${transaction.id}\`
 📅 *Tanggal:* ${dateStr}, ${timeStr}
+👨‍💼 *Kasir:* *${transaction.cashierName || 'Ami Azzam'}*
 👤 *Pembeli:* *${transaction.customerName || 'santri'}*
 ----------------------------------------
 
@@ -106,6 +107,7 @@ _Barakallahu fiikum_`;
           <div class="sub-name">Ibnu Abbas - Maqshof</div>
           <div class="txn-id">${txn.id}</div>
           <div class="txn-id">${dateStr} ${timeStr}</div>
+          <div class="txn-id">Kasir: <strong>${txn.cashierName || 'Ami Azzam'}</strong></div>
           <div class="txn-id">Pembeli: <strong>${txn.customerName || 'santri'}</strong></div>
         </div>
 
@@ -175,6 +177,7 @@ _Barakallahu fiikum_`;
   const csvData = filteredTransactions.map(t => ({
     ID: t.id,
     Tanggal: new Date(t.date).toLocaleString('id-ID'),
+    Kasir: t.cashierName || 'Ami Azzam',
     Pembeli: t.customerName || 'santri',
     Total: t.total,
     Dibayar: t.amountPaid,
@@ -227,6 +230,7 @@ _Barakallahu fiikum_`;
               <thead>
                 <tr>
                   <th>ID Transaksi</th>
+                  <th>Kasir</th>
                   <th>Pembeli</th>
                   <th>Tanggal</th>
                   <th>Items</th>
@@ -248,6 +252,7 @@ _Barakallahu fiikum_`;
                           {txn.id}
                           {hasRefund && <span className="refund-pill">↩ Refund</span>}
                         </td>
+                        <td data-label="Kasir"        style={{ fontWeight: '500', color: 'var(--text-muted)' }}>{txn.cashierName || 'Ami Azzam'}</td>
                         <td data-label="Pembeli"      style={{ fontWeight: '500' }}>{txn.customerName || 'santri'}</td>
                         <td data-label="Tanggal">{formatDate(txn.date)}</td>
                         <td data-label="Items">{totalItems} item</td>
@@ -269,11 +274,11 @@ _Barakallahu fiikum_`;
                       {/* Expanded detail row */}
                       {isExpanded && (
                         <tr key={`${txn.id}-detail`} className="txn-detail-row">
-                          <td colSpan="7">
+                          <td colSpan="8">
                             <div className="txn-detail-content">
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                                 <h4>Detail Pesanan</h4>
-                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Pembeli: <strong>{txn.customerName || 'santri'}</strong></div>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Kasir: <strong>{txn.cashierName || 'Ami Azzam'}</strong> · Pembeli: <strong>{txn.customerName || 'santri'}</strong></div>
                               </div>
 
                               {/* Item list */}
@@ -521,7 +526,8 @@ function RefundModal({ txn, onClose, onRefund }) {
             <h2>Refund Barang</h2>
             <div style={{ fontSize: '0.83rem', color: 'var(--text-muted)', marginTop: '2px' }}>
               Transaksi: <span style={{ fontFamily: 'monospace' }}>{txn.id}</span>
-              {' · '}{txn.customerName || 'santri'}
+              {' · '}Kasir: <strong>{txn.cashierName || 'Ami Azzam'}</strong>
+              {' · '}Pembeli: <strong>{txn.customerName || 'santri'}</strong>
             </div>
           </div>
           <button className="btn-icon" onClick={onClose} style={{ padding: 0 }}><X size={24} /></button>

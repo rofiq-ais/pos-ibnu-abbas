@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Package, ShoppingBag, X, CreditCard, Minus, Plus, Trash2, Camera, Copy, Send, Check, Printer, PlusCircle } from 'lucide-react';
+import { Search, Package, ShoppingBag, X, CreditCard, Minus, Plus, Trash2, Camera, Copy, Send, Check, Printer, PlusCircle, User } from 'lucide-react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { formatCurrency } from '../utils';
 import { defaultImage } from './Shared';
@@ -10,11 +10,27 @@ export function POSView({ pos }) {
   const [category,           setCategory]           = useState('All');
   const [showCheckout,       setShowCheckout]       = useState(false);
   const [customerName,       setCustomerName]       = useState('santri');
+  const [cashierName,        setCashierName]        = useState(() => {
+    try {
+      return localStorage.getItem('pos_cashier_name') || 'Ami Azzam';
+    } catch {
+      return 'Ami Azzam';
+    }
+  });
   const [showMobileCart,     setShowMobileCart]     = useState(false);
   const [successTransaction, setSuccessTransaction] = useState(null); // { transaction, offlineMode }
   const [showCameraScanner,  setShowCameraScanner]  = useState(false);
   const [showSearchInput,    setShowSearchInput]    = useState(true);
   const [showManualItemModal, setShowManualItemModal] = useState(false);
+
+  const handleCashierChange = (name) => {
+    setCashierName(name);
+    try {
+      localStorage.setItem('pos_cashier_name', name);
+    } catch (e) {
+      console.warn('Gagal menyimpan nama kasir ke localStorage:', e);
+    }
+  };
 
   // Audio Beep generator
   const playBeep = () => {
@@ -111,7 +127,7 @@ export function POSView({ pos }) {
   const cartTotal = pos.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
   const handleCheckoutSuccess = async (amount) => {
-    const result = await pos.checkout(amount, customerName);
+    const result = await pos.checkout(amount, customerName, cashierName);
     if (result.success) {
       setShowCheckout(false);
       setCustomerName('santri');
@@ -198,7 +214,15 @@ export function POSView({ pos }) {
 
       {/* ── Desktop Cart ── */}
       <div className="cart-section desktop-cart">
-        <CartContent pos={pos} customerName={customerName} setCustomerName={setCustomerName} onCheckout={() => setShowCheckout(true)} onAddManualItemClick={() => setShowManualItemModal(true)} />
+        <CartContent
+          pos={pos}
+          customerName={customerName}
+          setCustomerName={setCustomerName}
+          cashierName={cashierName}
+          onCashierChange={handleCashierChange}
+          onCheckout={() => setShowCheckout(true)}
+          onAddManualItemClick={() => setShowManualItemModal(true)}
+        />
       </div>
 
       {/* ── Mobile Cart Bar ── Sembunyikan saat checkout modal aktif */}
@@ -231,6 +255,8 @@ export function POSView({ pos }) {
                 pos={pos}
                 customerName={customerName}
                 setCustomerName={setCustomerName}
+                cashierName={cashierName}
+                onCashierChange={handleCashierChange}
                 onCheckout={() => { setShowMobileCart(false); setShowCheckout(true); }}
                 onAddManualItemClick={() => setShowManualItemModal(true)}
               />
@@ -244,6 +270,7 @@ export function POSView({ pos }) {
         <CheckoutModal
           total={cartTotal}
           customerName={customerName}
+          cashierName={cashierName}
           onClose={() => setShowCheckout(false)}
           onCheckout={handleCheckoutSuccess}
         />
@@ -415,13 +442,59 @@ function CameraScannerModal({ onClose, onScan }) {
 }
 
 // ── CartContent ───────────────────────────────────────────────────────────────
-function CartContent({ pos, customerName, setCustomerName, onCheckout, onAddManualItemClick }) {
+function CartContent({ pos, customerName, setCustomerName, cashierName, onCashierChange, onCheckout, onAddManualItemClick }) {
   const cartTotal = pos.cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   return (
     <>
-      <div className="cart-header">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
-          <h2 style={{ fontSize: '1.1rem', fontWeight: '600' }}>Pesanan</h2>
+      <div className="cart-header" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0 }}>Pesanan</h2>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn-icon" onClick={onAddManualItemClick} title="Input Barang Manual"><PlusCircle size={20} /></button>
+            <button className="btn-icon" onClick={pos.clearCart} title="Kosongkan Keranjang"><Trash2 size={20} /></button>
+          </div>
+        </div>
+
+        {/* Pemilihan Kasir Bertugas */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '4px', letterSpacing: '0.3px', textTransform: 'uppercase' }}>
+            <User size={12} /> Kasir:
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', background: 'var(--background)', padding: '3px', borderRadius: '10px', border: '1.5px solid var(--border)' }}>
+            {['Ami Azzam', 'Ami Muhajir'].map(name => {
+              const isActive = cashierName === name;
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => onCashierChange?.(name)}
+                  style={{
+                    padding: '7px 8px',
+                    fontSize: '0.8rem',
+                    fontWeight: isActive ? '700' : '500',
+                    borderRadius: '7px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    transition: 'all 0.15s ease',
+                    background: isActive ? 'var(--primary)' : 'transparent',
+                    color: isActive ? '#fff' : 'var(--text)',
+                    boxShadow: isActive ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+                  }}
+                >
+                  {isActive && <Check size={13} strokeWidth={3} />}
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Input Nama Pembeli */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
           <input
             type="text" placeholder="Nama Pembeli" value={customerName}
             onChange={e => setCustomerName(e.target.value)}
@@ -435,10 +508,6 @@ function CartContent({ pos, customerName, setCustomerName, onCheckout, onAddManu
               fontWeight: '500',
             }}
           />
-        </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn-icon" onClick={onAddManualItemClick} title="Input Barang Manual"><PlusCircle size={20} /></button>
-          <button className="btn-icon" onClick={pos.clearCart} title="Kosongkan Keranjang"><Trash2 size={20} /></button>
         </div>
       </div>
 
@@ -478,7 +547,7 @@ function CartContent({ pos, customerName, setCustomerName, onCheckout, onAddManu
 }
 
 // ── CheckoutModal ─────────────────────────────────────────────────────────────
-function CheckoutModal({ total, customerName, onClose, onCheckout }) {
+function CheckoutModal({ total, customerName, cashierName, onClose, onCheckout }) {
   const [amountPaidRaw, setAmountPaidRaw] = useState('');
   const [errorMsg,      setErrorMsg]      = useState('');
   const [isLoading,     setIsLoading]     = useState(false);
@@ -521,7 +590,11 @@ function CheckoutModal({ total, customerName, onClose, onCheckout }) {
         <div className="checkout-modal-header">
           <div>
             <h2>Konfirmasi Pembayaran</h2>
-            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Pembeli: <strong>{customerName}</strong></div>
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', display: 'flex', gap: '8px', alignItems: 'center', marginTop: '2px' }}>
+              <span>Kasir: <strong>{cashierName || 'Ami Azzam'}</strong></span>
+              <span>•</span>
+              <span>Pembeli: <strong>{customerName || 'santri'}</strong></span>
+            </div>
           </div>
           <button onClick={onClose} className="btn-icon" style={{ padding: 0 }}><X size={24} /></button>
         </div>
@@ -595,6 +668,7 @@ function TransactionSuccessModal({ transaction, offlineMode, onClose }) {
 ----------------------------------------
 📝 *No. Transaksi:* \`${transaction.id}\`
 📅 *Tanggal:* ${dateStr}, ${timeStr}
+👨‍💼 *Kasir:* *${transaction.cashierName || 'Ami Azzam'}*
 👤 *Pembeli:* *${transaction.customerName || 'santri'}*
 ----------------------------------------
 
@@ -671,6 +745,7 @@ _Barakallahu fiikum_`;
           <div class="sub-name">Ibnu Abbas - Maqshof</div>
           <div class="txn-id">${transaction.id}</div>
           <div class="txn-id">${dateStr} ${timeStr}</div>
+          <div class="txn-id">Kasir: <strong>${transaction.cashierName || 'Ami Azzam'}</strong></div>
           <div class="txn-id">Pembeli: <strong>${transaction.customerName || 'santri'}</strong></div>
         </div>
 
@@ -763,6 +838,7 @@ _Barakallahu fiikum_`;
           </div>
           <div className="receipt-divider" />
           <div className="receipt-summary">
+            <div className="receipt-row"><span>Kasir</span><span><strong>{transaction.cashierName || 'Ami Azzam'}</strong></span></div>
             <div className="receipt-row"><span>Pembeli</span><span><strong>{transaction.customerName || 'santri'}</strong></span></div>
             <div className="receipt-row"><span>Total Belanja</span><span><strong>{formatCurrency(transaction.total)}</strong></span></div>
             <div className="receipt-row"><span>Dibayar</span><span>{formatCurrency(transaction.amountPaid)}</span></div>

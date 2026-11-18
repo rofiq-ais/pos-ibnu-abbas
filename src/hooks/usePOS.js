@@ -86,7 +86,7 @@ export function usePOS() {
     setCart([]);
   };
 
-  const checkout = async (amountPaid, customerName = 'santri') => {
+  const checkout = async (amountPaid, customerName = 'santri', cashierName = 'Ami Azzam') => {
     const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
     
     if (cart.length === 0) return { success: false, message: 'Cart is empty' };
@@ -95,6 +95,7 @@ export function usePOS() {
       id: `TXN-${Date.now()}`,
       date: new Date().toISOString(),
       customerName,
+      cashierName,
       items: [...cart],
       total,
       amountPaid,

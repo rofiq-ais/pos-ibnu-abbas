@@ -20,7 +20,8 @@ CREATE TABLE transactions (
   total INTEGER NOT NULL,
   amountPaid INTEGER NOT NULL,
   change INTEGER NOT NULL,
-  items TEXT NOT NULL
+  items TEXT NOT NULL,
+  cashierName TEXT
 );
 
 DROP TABLE IF EXISTS cash_flow;
